@@ -1,0 +1,68 @@
+
+<!DOCTYPE html>
+
+
+<head>
+
+<style>
+
+*{text-align:center;}
+
+</style>
+<script>
+
+var stone = Array.from({length: 32}, () => 0);
+stone[0]=stone[31]=1;
+var remaining = 15;
+var state = 0;
+
+function randomvalue(){
+	var value = "";
+	for(i=0;i<5;i++){
+		value += "!@#$%^&*()"[Math.floor(Math.random()*10)];
+	}
+	return value;
+}
+
+function ans(){
+	for(i=0;i<2;i++){
+		var index = parseInt(document.form.answer.value[i])-1;
+		if (state % (2**(index+1)) >= 2**(index)){
+			state -= 2**index;
+		}else{
+			state += 2**index;
+		}
+	}
+	stone[state] = 1;
+	stone[31-state] = 1;
+	console.log(stone);
+	document.form.answer.value = '';
+	remaining--;
+	if (remaining <= 0){
+		if (stone.includes(0))
+			document.querySelector('#dialogue').innerText = "실패했습니다. 장비를 정지합니다.";
+		else
+			document.querySelector('#dialogue').innerText = "성공했습니다. 페이지가 곧 열립니다.";
+	}else{
+		document.querySelector('#dialogue').innerText = "현재 동전의 상태는 " + randomvalue() + "입니다. " + remaining + "번 남았습니다.";
+	}
+	return false;
+}
+</script>
+
+</head>
+
+
+<body style="">
+<div id="dialogue" style="height:180px;">
+보안 절차에 오신 것을 환영합니다.<br>
+당신의 목표는 5개의 동전이 모두 같은 면을 향하도록 하는 것입니다.<br>
+동전의 상태는 앞면은 0, 뒷면은 1로 나타냅니다.<br>
+총 15번의 기회가 주어지며, 그 때마다 원하는 동전 2개를 뒤집을 수 있습니다.<br>
+예를 들어, 첫 번째와 두 번째 동전을 뒤집으려면 12를 입력하면 됩니다.<br>
+현재 동전의 상태는 #%^@%입니다. 15번 남았습니다.
+</div>
+<form name="form" onsubmit="return ans();">
+<input name="answer">
+</form>
+</body>
