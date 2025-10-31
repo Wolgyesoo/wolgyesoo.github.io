@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Minesweeper Advanced</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --cell-size: 38px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #222 0%, #0b0d11 55%, #010101 100%);
+      font-family: "Segoe UI", sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      color: #fff;
+      padding: 24px 16px;
+    }
+    .game {
+      background: rgba(9, 10, 13, 0.6);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      box-shadow: 0 16px 35px rgba(0,0,0,0.3);
+      padding: 16px 16px 20px;
+    }
+    .top-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .badge {
+      background: rgba(255, 123, 189, 0.15);
+      border: 1px solid rgba(255, 123, 189, 0.2);
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #status {
+      margin-left: auto;
+      font-weight: 600;
+      font-size: 14px;
+      color: #d4dfff;
+    }
+    button {
+      background: linear-gradient(140deg, #ff7bbd 0%, #ff9581 100%);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      border-radius: 12px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: transform .1s;
+    }
+    button:hover { transform: translateY(-1px); }
+    #board {
+      display: grid;
+      gap: 4px;
+      background: rgba(1,1,1,0.15);
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      background: linear-gradient(150deg, #2c3041 0%, #191b25 100%);
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      color: #fff;
+      cursor: pointer;
+      user-select: none;
+      transition: background .12s, transform .12s;
+    }
+    .cell:active { transform: scale(.97); }
+    .cell.revealed {
+      background: #0e1117;
+      cursor: default;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+    .cell.mine { background: #3d1019; }
+    .cell.flagged {
+      background: linear-gradient(150deg, #ff7bbd 0%, #ff5858 100%);
+      color: #fff;
+    }
+    .num-1 { color: #88c0ff; }
+    .num-2 { color: #9cffb2; }
+    .num-3 { color: #ffb06e; }
+    .num-4 { color: #c7a2ff; }
+    .num-5 { color: #ff6f6f; }
+    .num-6 { color: #76fff6; }
+    .num-7 { color: #fff; }
+    .num-8 { color: #777; }
+
+    /* 아래 컨트롤 박스 */
+    .controls {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .controls .field {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 6px 10px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 13px;
+    }
+    .controls input {
+      width: 60px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      padding: 3px 6px;
+      color: #fff;
+      font-size: 12px;
+    }
+
+    @media (max-width: 600px) {
+      :root { --cell-size: 32px; }
+      .top-bar { flex-wrap: wrap; }
+      .controls { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <div class="top-bar">
+      <div class="badge" id="mineCount">💣 0</div>
+      <div class="badge" id="time">⏱ 0s</div>
+      <button id="resetBtn">다시! 🔁</button>
+      <span id="status">라비: 이번엔 2x2도 있다 🐰🧨</span>
+    </div>
+    <div id="board"></div>
+
+    <!-- 여기 추가 👇 -->
+    <div class="controls">
+      <div class="field">행 <input id="rowsInput" type="number" min="4" value="15"></div>
+      <div class="field">열 <input id="colsInput" type="number" min="4" value="20"></div>
+      <div class="field">일반 💣 <input id="normalInput" type="number" min="0" value="30"></div>
+      <div class="field">대형 🧨 <input id="bigInput" type="number" min="0" value="5"></div>
+      <button id="applyBtn">적용 ✅</button>
+    </div>
+  </div>
+
+  <script>
+    // 기본값
+    let ROWS = 15;
+    let COLS = 20;
+    let NORMAL_MINES = 30;   // 1칸짜리
+    let BIG_MINES = 5;       // 2x2 덩어리
+
+    // ===== 상태 =====
+    const boardElem = document.getElementById("board");
+    const mineCountElem = document.getElementById("mineCount");
+    const timeElem = document.getElementById("time");
+    const statusElem = document.getElementById("status");
+    const resetBtn = document.getElementById("resetBtn");
+    const applyBtn = document.getElementById("applyBtn");
+
+    const rowsInput = document.getElementById("rowsInput");
+    const colsInput = document.getElementById("colsInput");
+    const normalInput = document.getElementById("normalInput");
+    const bigInput = document.getElementById("bigInput");
+
+    let grid = [];        // 칸들
+    let mines = [];       // {id, type: 'normal'|'big', cells:[{r,c},...]}
+    let revealedCount = 0;
+    let flags = 0;
+    let timer = null;
+    let started = false;
+    let gameOver = false;
+    let seconds = 0;
+
+    function readControls() {
+      // 입력값 읽어서 전역에 반영
+      let r = parseInt(rowsInput.value, 10);
+      let c = parseInt(colsInput.value, 10);
+      let n = parseInt(normalInput.value, 10);
+      let b = parseInt(bigInput.value, 10);
+
+      r = isNaN(r) ? 15 : Math.max(4, r);
+      c = isNaN(c) ? 20 : Math.max(4, c);
+
+      // 2x2가 들어갈 수 있는 최대 개수
+      const maxBig = Math.max(0, (r - 1) * (c - 1));
+      b = isNaN(b) ? 0 : Math.min(Math.max(0, b), maxBig);
+
+      // 대형이 차지하는 칸
+      const occupiedByBig = b * 4;
+      const totalCells = r * c;
+      const maxNormal = Math.max(0, totalCells - occupiedByBig - 1); // 최소 1칸 남기기
+      n = isNaN(n) ? 0 : Math.min(Math.max(0, n), maxNormal);
+
+      ROWS = r;
+      COLS = c;
+      NORMAL_MINES = n;
+      BIG_MINES = b;
+
+      // 입력칸도 보정된 값으로 다시 세팅
+      rowsInput.value = ROWS;
+      colsInput.value = COLS;
+      normalInput.value = NORMAL_MINES;
+      bigInput.value = BIG_MINES;
+    }
+
+    function init() {
+      boardElem.style.gridTemplateColumns = `repeat(${COLS}, var(--cell-size))`;
+      boardElem.innerHTML = "";
+      grid = [];
+      mines = [];
+      revealedCount = 0;
+      flags = 0;
+      seconds = 0;
+      started = false;
+      gameOver = false;
+      timeElem.textContent = "⏱ 0s";
+      statusElem.textContent = "라비: 이번엔 2x2도 있다 🐰🧨";
+      if (timer) clearInterval(timer);
+
+      // 그리드 생성
+      for (let r = 0; r < ROWS; r++) {
+        let row = [];
+        for (let c = 0; c < COLS; c++) {
+          const cell = {
+            row: r,
+            col: c,
+            mineId: null,
+            revealed: false,
+            flagged: false,
+            adjacent: 0,
+            elem: null
+          };
+          const div = document.createElement("div");
+          div.className = "cell";
+          div.dataset.row = r;
+          div.dataset.col = c;
+          div.addEventListener("click", onCellLeft);
+          div.addEventListener("contextmenu", onCellRight);
+          boardElem.appendChild(div);
+          cell.elem = div;
+          row.push(cell);
+        }
+        grid.push(row);
+      }
+
+      // 지뢰 깔기 (대형 -> 일반 순서)
+      placeBigMines();
+      placeNormalMines();
+
+      // 숫자 계산
+      calcAdjacents();
+
+      // 남은 지뢰 수는 "칸" 단위가 아니라 "플래그로 표시할 개수"로 보여줄 거면 원래 너가 쓰던 방식 유지
+      // (대형 하나가 4칸이라 지금은 4칸 + 일반칸으로 표시)
+      mineCountElem.textContent = "💣 " + (BIG_MINES * 4 + NORMAL_MINES);
+    }
+
+    // 2x2 대형 지뢰 배치
+    function placeBigMines() {
+      let placed = 0;
+      let attempts = 0;
+      while (placed < BIG_MINES && attempts < 800) {
+        attempts++;
+        const r = Math.floor(Math.random() * (ROWS - 1));
+        const c = Math.floor(Math.random() * (COLS - 1));
+        if (
+          grid[r][c].mineId !== null ||
+          grid[r+1][c].mineId !== null ||
+          grid[r][c+1].mineId !== null ||
+          grid[r+1][c+1].mineId !== null
+        ) continue;
+
+        const id = "B" + placed;
+        const cells = [
+          {r, c},
+          {r: r+1, c},
+          {r, c: c+1},
+          {r: r+1, c: c+1}
+        ];
+        mines.push({ id, type: "big", cells });
+        for (const pos of cells) {
+          grid[pos.r][pos.c].mineId = id;
+        }
+        placed++;
+      }
+    }
+
+    // 1칸짜리 지뢰 배치
+    function placeNormalMines() {
+      let placed = 0;
+      let idx = 0;
+      while (placed < NORMAL_MINES && idx < 3000) {
+        idx++;
+        const r = Math.floor(Math.random() * ROWS);
+        const c = Math.floor(Math.random() * COLS);
+        if (grid[r][c].mineId === null) {
+          const id = "N" + placed;
+          mines.push({ id, type: "normal", cells: [{r, c}] });
+          grid[r][c].mineId = id;
+          placed++;
+        }
+      }
+    }
+
+    // 각 칸에 인접 지뢰 "덩어리" 개수 계산
+    function calcAdjacents() {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = grid[r][c];
+          if (cell.mineId) {
+            cell.adjacent = -1;
+            continue;
+          }
+          const adjMineIds = new Set();
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (dr === 0 && dc === 0) continue;
+              const nr = r + dr, nc = c + dc;
+              if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+              const nid = grid[nr][nc].mineId;
+              if (nid) adjMineIds.add(nid);
+            }
+          }
+          cell.adjacent = adjMineIds.size;
+        }
+      }
+    }
+
+    function startTimer() {
+      timer = setInterval(() => {
+        seconds++;
+        timeElem.textContent = `⏱ ${seconds}s`;
+      }, 1000);
+    }
+
+    function onCellLeft(e) {
+      if (gameOver) return;
+      const r = +this.dataset.row;
+      const c = +this.dataset.col;
+      const cell = grid[r][c];
+
+      if (!started) {
+        started = true;
+        startTimer();
+      }
+      if (cell.flagged || cell.revealed) return;
+
+      reveal(cell);
+      checkWin();
+    }
+
+    function onCellRight(e) {
+      e.preventDefault();
+      if (gameOver) return;
+      const r = +this.dataset.row;
+      const c = +this.dataset.col;
+      const cell = grid[r][c];
+      if (cell.revealed) return;
+      cell.flagged = !cell.flagged;
+      if (cell.flagged) {
+        cell.elem.classList.add("flagged");
+        cell.elem.textContent = "🚩";
+        flags++;
+      } else {
+        cell.elem.classList.remove("flagged");
+        cell.elem.textContent = "";
+        flags--;
+      }
+      mineCountElem.textContent = "💣 " + ((BIG_MINES * 4 + NORMAL_MINES) - flags);
+    }
+
+    function reveal(cell) {
+      if (cell.revealed) return;
+      cell.revealed = true;
+      cell.elem.classList.add("revealed");
+
+      if (cell.mineId) {
+        showMine(cell.mineId);
+        gameLose();
+        return;
+      }
+
+      revealedCount++;
+      if (cell.adjacent > 0) {
+        cell.elem.textContent = cell.adjacent;
+        cell.elem.classList.add("num-" + Math.min(cell.adjacent, 8));
+      } else {
+        floodReveal(cell.row, cell.col);
+      }
+    }
+
+    function floodReveal(r, c) {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r + dr, nc = c + dc;
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+          const ncell = grid[nr][nc];
+          if (!ncell.revealed && !ncell.mineId && !ncell.flagged) {
+            reveal(ncell);
+          }
+        }
+      }
+    }
+
+    // 지뢰 덩어리 보여주기
+    function showMine(mineId) {
+      const m = mines.find(m => m.id === mineId);
+      if (!m) return;
+      for (const pos of m.cells) {
+        const cell = grid[pos.r][pos.c];
+        cell.elem.classList.add("revealed", "mine");
+        cell.elem.textContent = (m.type === "big") ? "🧨" : "💣";
+      }
+    }
+
+    function gameLose() {
+      gameOver = true;
+      statusElem.textContent = "라비: 아앗… 💥 다시 ㄱㄱ";
+      if (timer) clearInterval(timer);
+      for (const m of mines) {
+        for (const pos of m.cells) {
+          const cell = grid[pos.r][pos.c];
+          cell.elem.classList.add("revealed", "mine");
+          cell.elem.textContent = (m.type === "big") ? "🧨" : "💣";
+        }
+      }
+    }
+
+    function checkWin() {
+      const totalCells = ROWS * COLS;
+      const mineCells = mines.reduce((sum, m) => sum + m.cells.length, 0);
+      const safeCells = totalCells - mineCells;
+      if (revealedCount === safeCells) {
+        gameOver = true;
+        statusElem.textContent = "라비: 대형까지 다 피했다니… 인정 🐰✨";
+        if (timer) clearInterval(timer);
+        for (const m of mines) {
+          for (const pos of m.cells) {
+            const cell = grid[pos.r][pos.c];
+            if (!cell.flagged) {
+              cell.elem.classList.add("flagged");
+              cell.elem.textContent = (m.type === "big") ? "🧨" : "🚩";
+            }
+          }
+        }
+      }
+    }
+
+    resetBtn.addEventListener("click", init);
+    applyBtn.addEventListener("click", () => {
+      readControls();
+      init();
+    });
+
+    // 시작
+    init();
+  </script>
+</body>
+</html>
